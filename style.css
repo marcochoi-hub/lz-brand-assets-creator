@@ -1,0 +1,12 @@
+html, body { height: 100%; margin: 0; }
+body {
+  background: #fafaf8;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  color: #1a1a1a;
+  overflow: hidden;
+}
+a { color: #1a1a1a; }
+a:hover { color: #e8590c; }
+input[type="range"] { accent-color: #1a1a1a; }
+#app { height: 100vh; }
+@keyframes lzspin { to { transform: rotate(360deg); } }
