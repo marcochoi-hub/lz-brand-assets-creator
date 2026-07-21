@@ -1082,7 +1082,7 @@ function renderStep4() {
   toolbar.appendChild(scaleInput);
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
 
-  toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Rotate'));
+  toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Transform'));
   const rotateBy = delta => {
     let r = state.swRot + delta;
     if (r > 180) r -= 360;
@@ -1091,6 +1091,8 @@ function renderStep4() {
   };
   toolbar.appendChild(iconBtn('↺', 'Rotate 90° left', false, () => rotateBy(-90)));
   toolbar.appendChild(iconBtn('↻', 'Rotate 90° right', false, () => rotateBy(90)));
+  toolbar.appendChild(iconBtn('↔', 'Flip horizontal', state.swFlipH, () => setState({ swFlipH: !state.swFlipH })));
+  toolbar.appendChild(iconBtn('↕', 'Flip vertical', state.swFlipV, () => setState({ swFlipV: !state.swFlipV })));
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
 
   toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Soften edge'));
@@ -1102,8 +1104,6 @@ function renderStep4() {
 
   toolbar.appendChild(iconBtn('✂', 'Lasso — erase part of the swirl', state.lassoMode, () => { lassoPoints = []; setState({ lassoMode: !state.lassoMode }); }));
   toolbar.appendChild(iconBtn('↩', 'Undo last erase', false, () => { if (swEraseMask.length) { swEraseMask.pop(); paint4(); } }, swEraseMask.length ? '#1a1a1a' : '#c5c0b4'));
-  toolbar.appendChild(iconBtn('⇋', 'Flip horizontal', state.swFlipH, () => setState({ swFlipH: !state.swFlipH })));
-  toolbar.appendChild(iconBtn('⇕', 'Flip vertical', state.swFlipV, () => setState({ swFlipV: !state.swFlipV })));
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
   toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', color: '#8a8478', cursor: 'pointer', borderRadius: '6px' }, onClick: () => setState({ swScale: 1.05, swRot: 0 }) }, 'Reset'));
 
