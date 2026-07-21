@@ -475,15 +475,37 @@ function recompute() {
     const a = (d[i * 4 + 3] / 255) > th ? 255 : 0;
     d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; d[i * 4 + 3] = a;
   }
-  tc.putImageData(idata, 0, 0);
+  tc.putImageData(idata, 0, 0); // t = hard binary mask
 
   // spatial feather: blur the mask so the cutout edge transitions softly over a real pixel
-  // distance, the way "feather" works in Photoshop-style selection tools.
+  // distance, the way "feather" works in Photoshop-style selection tools. A plain symmetric
+  // blur also expands the mask outward past the true silhouette — and since the pixels
+  // there are the photo's own background (not the subject), that background bleeds through
+  // as a light halo instead of letting the swirl show through. Fix: take min(hard, blurred)
+  // per pixel, so the blur can only erode alpha *inward* from the original edge, never add
+  // alpha outside it. Semi-transparent edge pixels are then always genuine subject color
+  // (hair etc.), so it's the swirl blending through, not the photo's own background.
   const blurPx = fe; // direct pixel radius (0-10, set by the "Soften edge" slider), at mask resolution
-  const soft = document.createElement('canvas'); soft.width = mw; soft.height = mh;
-  const sctx = soft.getContext('2d');
-  sctx.filter = blurPx > 0.3 ? `blur(${blurPx}px)` : 'none';
-  sctx.drawImage(t, 0, 0);
+  let finalMask = t;
+  if (blurPx > 0.3) {
+    const blurred = document.createElement('canvas'); blurred.width = mw; blurred.height = mh;
+    const bctx = blurred.getContext('2d');
+    bctx.filter = `blur(${blurPx}px)`;
+    bctx.drawImage(t, 0, 0);
+    bctx.filter = 'none';
+    const hardData = tc.getImageData(0, 0, mw, mh).data;
+    const blurData = bctx.getImageData(0, 0, mw, mh).data;
+    const out = document.createElement('canvas'); out.width = mw; out.height = mh;
+    const octx = out.getContext('2d');
+    const outImg = octx.createImageData(mw, mh);
+    const od = outImg.data;
+    for (let i = 0; i < mw * mh; i++) {
+      const a = Math.min(hardData[i * 4 + 3], blurData[i * 4 + 3]);
+      od[i * 4] = 255; od[i * 4 + 1] = 255; od[i * 4 + 2] = 255; od[i * 4 + 3] = a;
+    }
+    octx.putImageData(outImg, 0, 0);
+    finalMask = out;
+  }
 
   const im = img;
   const s = document.createElement('canvas'); s.width = im.naturalWidth; s.height = im.naturalHeight;
@@ -491,7 +513,7 @@ function recompute() {
   sc.drawImage(im, 0, 0);
   sc.globalCompositeOperation = 'destination-in';
   sc.imageSmoothingQuality = 'high';
-  sc.drawImage(soft, 0, 0, s.width, s.height);
+  sc.drawImage(finalMask, 0, 0, s.width, s.height);
   subjectC = s;
 }
 
