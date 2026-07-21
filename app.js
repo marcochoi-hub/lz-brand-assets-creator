@@ -280,7 +280,7 @@ async function fetchPexels(qq, page, orientation) {
     const r = await fetch('https://api.pexels.com/v1/search?query=' + encodeURIComponent(qq) + '&per_page=' + PEXELS_PER_PAGE + '&page=' + page + orientParam, { headers: { Authorization: PEXELS_KEY } });
     if (!r.ok) throw new Error('pexels ' + r.status);
     const j = await r.json();
-    const items = (j.photos || []).map(p => ({ id: 'px' + p.id, thumb: p.src.medium, full: p.src.large2x || p.src.original, alt: ((p.alt || 'Photo').slice(0, 100)), provider: 'Pexels' }));
+    const items = (j.photos || []).map(p => ({ id: 'px' + p.id, thumb: p.src.medium, full: p.src.original, alt: ((p.alt || 'Photo').slice(0, 100)), provider: 'Pexels' }));
     return { items, hasMore: (page * PEXELS_PER_PAGE) < (j.total_results || 0) };
   } catch (e) { console.warn('pexels search failed', e); return { items: [], hasMore: false }; }
 }
@@ -291,7 +291,7 @@ async function fetchUnsplash(qq, page, orientation) {
     const r = await fetch('https://api.unsplash.com/search/photos?query=' + encodeURIComponent(qq) + '&per_page=' + UNSPLASH_PER_PAGE + '&page=' + page + orientParam + '&client_id=' + UNSPLASH_KEY);
     if (!r.ok) throw new Error('unsplash ' + r.status);
     const j = await r.json();
-    const items = (j.results || []).map(p => ({ id: 'un' + p.id, thumb: p.urls.small, full: p.urls.raw + '&w=2200&q=85&auto=format', alt: ((p.alt_description || 'Photo').slice(0, 100)), provider: 'Unsplash' }));
+    const items = (j.results || []).map(p => ({ id: 'un' + p.id, thumb: p.urls.small, full: p.urls.raw + '&w=6000&q=90&auto=format', alt: ((p.alt_description || 'Photo').slice(0, 100)), provider: 'Unsplash' }));
     return { items, hasMore: page < (j.total_pages || 1) };
   } catch (e) { console.warn('unsplash search failed', e); return { items: [], hasMore: false }; }
 }
@@ -1062,6 +1062,13 @@ function renderStep4() {
   toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', border: '1px solid ' + fH.border, background: fH.bg === '#1a1a1a' ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer' }, onClick: () => setState({ swFlipH: !state.swFlipH }) }, 'Flip H'));
   toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', border: '1px solid ' + fV.border, background: fV.bg === '#1a1a1a' ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer' }, onClick: () => setState({ swFlipV: !state.swFlipV }) }, 'Flip V'));
   toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', color: '#8a8478', cursor: 'pointer', borderRadius: '6px' }, onClick: () => setState({ swScale: 1.05, swRot: 0 }) }, 'Reset'));
+  toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
+
+  toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Soften edge'));
+  const featherInput = el('input', { type: 'range', min: '0.005', max: '0.3', step: '0.005', style: { width: '90px' } });
+  featherInput.value = state.feather;
+  featherInput.addEventListener('input', e => { state.feather = +e.target.value; scheduleRecompute(); });
+  toolbar.appendChild(featherInput);
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
 
   const lassoOn = seg2(state.lassoMode);
