@@ -21,7 +21,7 @@ const state = {
   photoSource: 'search', recTheme: 'All',
   searching: false, loadingMore: false,
   segStatus: 'idle', segMessage: 'Loading cutout model…', segEngine: null,
-  view: 'cutout', threshold: 0.5, feather: 0.06,
+  view: 'cutout', threshold: 0.5, feather: 2,
   swirlIdx: 0, swx: 0.5, swy: 0.42, swScale: 1.05, swRot: 0, swFlipH: false, swFlipV: false, lassoMode: false,
   exportFmt: 'jpg', exportScale: 1
 };
@@ -427,7 +427,7 @@ async function runSeg() {
     await new Promise(r => setTimeout(r, 30));
     const { data, w, h } = await segRMBG();
     applyProb(data, w, h);
-    setState({ segStatus: 'ready', segEngine: 'HQ', feather: 0.015, threshold: 0.4 });
+    setState({ segStatus: 'ready', segEngine: 'HQ', feather: 1, threshold: 0.4 });
     return;
   } catch (err) {
     console.warn('RMBG failed, falling back to MediaPipe', err);
@@ -453,7 +453,7 @@ async function runSeg() {
     const alpha = new Uint8ClampedArray(p.length);
     for (let i = 0; i < p.length; i++) alpha[i] = Math.round(p[i] * 255);
     applyProb(alpha, mwv, mhv);
-    setState({ segStatus: 'ready', segEngine: 'Fast', feather: 0.06, threshold: 0.5 });
+    setState({ segStatus: 'ready', segEngine: 'Fast', feather: 2, threshold: 0.5 });
   } catch (err) {
     console.warn('segmentation failed', err);
     setState({ segStatus: 'error' });
@@ -479,7 +479,7 @@ function recompute() {
 
   // spatial feather: blur the mask so the cutout edge transitions softly over a real pixel
   // distance, the way "feather" works in Photoshop-style selection tools.
-  const blurPx = fe * mw * 0.15;
+  const blurPx = fe; // direct pixel radius (0-10, set by the "Soften edge" slider), at mask resolution
   const soft = document.createElement('canvas'); soft.width = mw; soft.height = mh;
   const sctx = soft.getContext('2d');
   sctx.filter = blurPx > 0.3 ? `blur(${blurPx}px)` : 'none';
@@ -1042,19 +1042,24 @@ function renderStep4() {
   const toolbarWrap = el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '10px 24px 18px', flex: 'none' } });
   const toolbar = el('div', { style: { display: 'flex', alignItems: 'center', gap: '11px', padding: '12px 16px', background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: '12px', boxShadow: '0 4px 18px rgba(26,20,10,.07)' } });
 
-  [0, 1, 2, 3].forEach(i => {
-    const outline = state.swirlIdx === i ? '#1a1a1a' : 'transparent';
-    toolbar.appendChild(el('div', {
-      style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '62px', height: '38px', background: '#f7f5f0', borderRadius: '6px', cursor: 'pointer', outline: '2px solid ' + outline, outlineOffset: '-2px' },
-      onClick: () => setState({ swirlIdx: i })
-    }, [el('img', { src: 'assets/swirl-0' + (i + 1) + '.png', style: { width: '76%', height: 'auto' } })]));
-  });
+  const iconBtn = (label, title, active, onClick, extraColor) => el('div', {
+    style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', border: '1px solid ' + (active ? '#1a1a1a' : '#e0ddd6'), background: active ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', color: extraColor || '#1a1a1a' },
+    onClick, title
+  }, label);
+
+  const cycleSwirl = delta => setState({ swirlIdx: ((state.swirlIdx + delta) % 4 + 4) % 4 });
+  toolbar.appendChild(iconBtn('‹', 'Previous swirl', false, () => cycleSwirl(-1)));
+  toolbar.appendChild(el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '48px', height: '34px', background: '#f7f5f0', borderRadius: '6px' } }, [el('img', { src: 'assets/swirl-0' + (state.swirlIdx + 1) + '.png', style: { width: '76%', height: 'auto' } })]));
+  toolbar.appendChild(iconBtn('›', 'Next swirl', false, () => cycleSwirl(1)));
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
+
   toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Scale'));
-  const scaleInput = el('input', { type: 'range', min: '0.2', max: '5', step: '0.01', style: { width: '100px' } });
+  const scaleInput = el('input', { type: 'range', min: '0.2', max: '5', step: '0.01', style: { width: '90px' } });
   scaleInput.value = state.swScale;
   scaleInput.addEventListener('input', e => { state.swScale = +e.target.value; paint4(); });
   toolbar.appendChild(scaleInput);
+  toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
+
   toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Rotate'));
   const rotateBy = delta => {
     let r = state.swRot + delta;
@@ -1062,33 +1067,28 @@ function renderStep4() {
     if (r < -180) r += 360;
     setState({ swRot: r });
   };
-  toolbar.appendChild(el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', border: '1px solid #e0ddd6', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', background: '#ffffff' }, onClick: () => rotateBy(-90) }, '↺'));
-  toolbar.appendChild(el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', border: '1px solid #e0ddd6', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', background: '#ffffff' }, onClick: () => rotateBy(90) }, '↻'));
-
-  const fH = seg2(state.swFlipH), fV = seg2(state.swFlipV);
-  toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', border: '1px solid ' + fH.border, background: fH.bg === '#1a1a1a' ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer' }, onClick: () => setState({ swFlipH: !state.swFlipH }) }, 'Flip H'));
-  toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', border: '1px solid ' + fV.border, background: fV.bg === '#1a1a1a' ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer' }, onClick: () => setState({ swFlipV: !state.swFlipV }) }, 'Flip V'));
-  toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', color: '#8a8478', cursor: 'pointer', borderRadius: '6px' }, onClick: () => setState({ swScale: 1.05, swRot: 0 }) }, 'Reset'));
+  toolbar.appendChild(iconBtn('↺', 'Rotate 90° left', false, () => rotateBy(-90)));
+  toolbar.appendChild(iconBtn('↻', 'Rotate 90° right', false, () => rotateBy(90)));
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
 
   toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#8a8478' } }, 'Soften edge'));
-  const featherInput = el('input', { type: 'range', min: '0.005', max: '0.3', step: '0.005', style: { width: '90px' } });
+  const featherInput = el('input', { type: 'range', min: '0', max: '10', step: '1', style: { width: '80px' } });
   featherInput.value = state.feather;
   featherInput.addEventListener('input', e => { state.feather = +e.target.value; scheduleRecompute(); });
   toolbar.appendChild(featherInput);
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
 
-  const lassoOn = seg2(state.lassoMode);
-  toolbar.appendChild(el('div', {
-    style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', border: '1px solid ' + lassoOn.border, background: lassoOn.bg === '#1a1a1a' ? '#f1efe9' : '#ffffff', borderRadius: '6px', cursor: 'pointer' },
-    onClick: () => { lassoPoints = []; setState({ lassoMode: !state.lassoMode }); }
-  }, '✂ Lasso'));
-  toolbar.appendChild(el('div', {
-    style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', color: swEraseMask.length ? '#1a1a1a' : '#c5c0b4', cursor: swEraseMask.length ? 'pointer' : 'default', borderRadius: '6px', border: '1px solid #e0ddd6' },
-    onClick: () => { if (swEraseMask.length) { swEraseMask.pop(); paint4(); } }
-  }, '↩ Undo'));
+  toolbar.appendChild(iconBtn('✂', 'Lasso — erase part of the swirl', state.lassoMode, () => { lassoPoints = []; setState({ lassoMode: !state.lassoMode }); }));
+  toolbar.appendChild(iconBtn('↩', 'Undo last erase', false, () => { if (swEraseMask.length) { swEraseMask.pop(); paint4(); } }, swEraseMask.length ? '#1a1a1a' : '#c5c0b4'));
+  toolbar.appendChild(iconBtn('⇋', 'Flip horizontal', state.swFlipH, () => setState({ swFlipH: !state.swFlipH })));
+  toolbar.appendChild(iconBtn('⇕', 'Flip vertical', state.swFlipV, () => setState({ swFlipV: !state.swFlipV })));
   toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
-  toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#e8590c', fontWeight: '500' } }, state.lassoMode ? 'Click to place points, double-click to close the shape' : 'Drag the swirl on canvas ⌖'));
+  toolbar.appendChild(el('div', { style: { padding: '6px 11px', fontSize: '12px', fontWeight: '500', color: '#8a8478', cursor: 'pointer', borderRadius: '6px' }, onClick: () => setState({ swScale: 1.05, swRot: 0 }) }, 'Reset'));
+
+  if (state.lassoMode) {
+    toolbar.appendChild(el('span', { style: { width: '1px', height: '26px', background: '#e8e6e1' } }));
+    toolbar.appendChild(el('span', { style: { fontSize: '11.5px', color: '#e8590c', fontWeight: '500' } }, 'Click to place points, double-click to close the shape'));
+  }
 
   toolbarWrap.appendChild(toolbar);
   wrap.appendChild(toolbarWrap);
