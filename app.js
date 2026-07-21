@@ -460,11 +460,6 @@ async function runSeg() {
   }
 }
 
-function smoothstep(p, th, fe) {
-  const t = Math.min(1, Math.max(0, (p - (th - fe)) / (2 * fe + 1e-4)));
-  return t * t * (3 - 2 * t);
-}
-
 function recompute() {
   if (!probC || !img) return;
   const th = state.threshold, fe = state.feather;
@@ -473,18 +468,30 @@ function recompute() {
   tc.drawImage(probC, 0, 0, mw, mh);
   const idata = tc.getImageData(0, 0, mw, mh);
   const d = idata.data;
+  // hard threshold — RMBG's raw mask is already near-binary, so a value-domain smoothstep here
+  // had almost nothing to act on. The actual "soften edge" effect comes from spatially
+  // blurring this mask below, not from softening the threshold cutoff itself.
   for (let i = 0; i < mw * mh; i++) {
-    const a = smoothstep(d[i * 4 + 3] / 255, th, fe);
-    d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; d[i * 4 + 3] = Math.round(a * 255);
+    const a = (d[i * 4 + 3] / 255) > th ? 255 : 0;
+    d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; d[i * 4 + 3] = a;
   }
   tc.putImageData(idata, 0, 0);
+
+  // spatial feather: blur the mask so the cutout edge transitions softly over a real pixel
+  // distance, the way "feather" works in Photoshop-style selection tools.
+  const blurPx = fe * mw * 0.15;
+  const soft = document.createElement('canvas'); soft.width = mw; soft.height = mh;
+  const sctx = soft.getContext('2d');
+  sctx.filter = blurPx > 0.3 ? `blur(${blurPx}px)` : 'none';
+  sctx.drawImage(t, 0, 0);
+
   const im = img;
   const s = document.createElement('canvas'); s.width = im.naturalWidth; s.height = im.naturalHeight;
   const sc = s.getContext('2d');
   sc.drawImage(im, 0, 0);
   sc.globalCompositeOperation = 'destination-in';
   sc.imageSmoothingQuality = 'high';
-  sc.drawImage(t, 0, 0, s.width, s.height);
+  sc.drawImage(soft, 0, 0, s.width, s.height);
   subjectC = s;
 }
 
